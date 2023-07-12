@@ -1,24 +1,33 @@
 const database = require("./database");
 
 const getMovies = (req, res) => {
-  let sql = "select * from movies";
-  const sqlValues = [];
+  const initialSql = "select * from movies";
+  const where = [];
 
   if (req.query.color != null) {
-    sql += " where color = ?";
-    sqlValues.push(req.query.color);
+    where.push({
+      column: "color",
+      value: req.query.color,
+      operator: "=",
+    });
   }
   if (req.query.max_duration != null) {
-    if (sqlValues.length === 0) {
-      sql += " where duration <= ?";
-    } else {
-      sql += " and duration <= ?";
-    }
-    sqlValues.push(req.query.max_duration);
+    where.push({
+      column: "duration",
+      value: req.query.max_duration,
+      operator: "<=",
+    });
   }
 
   database
-    .query(sql, sqlValues)
+    .query(
+      where.reduce(
+        (sql, { column, operator }, index) =>
+          `${sql} ${index === 0 ? "where" : "and"} ${column} ${operator} ?`,
+        initialSql
+      ),
+      where.map(({ value }) => value)
+    )
     .then(([movies]) => {
       res.json(movies);
     })
@@ -34,9 +43,8 @@ const getMovieById = (req, res) => {
   database
     .query("select * from movies where id = ?", [id])
     .then(([movies]) => {
-      const movie = movies.find((movie) => movie.id === id);
-      if (movie != null) {
-        res.status(200).json(movie);
+      if (movies[0] != null) {
+        res.json(movies[0]);
       } else {
         res.status(404).send("Not Found");
       }
@@ -70,7 +78,7 @@ const updateMovie = (req, res) => {
 
   database
     .query(
-      "UPDATE movies SET title = ?, director = ?, year = ?, color = ?, duration = ? WHERE id = ?",
+      "update movies set title = ?, director = ?, year = ?, color = ?, duration = ? where id = ?",
       [title, director, year, color, duration, id]
     )
     .then(([result]) => {
@@ -82,7 +90,7 @@ const updateMovie = (req, res) => {
     })
     .catch((err) => {
       console.error(err);
-      res.status(500).send("Error updating a movie");
+      res.status(500).send("Error editing the movie");
     });
 };
 
@@ -90,7 +98,7 @@ const deleteMovie = (req, res) => {
   const id = parseInt(req.params.id);
 
   database
-    .query("DELETE FROM movies WHERE id = ?", [id])
+    .query("delete from movies where id = ?", [id])
     .then(([result]) => {
       if (result.affectedRows === 0) {
         res.status(404).send("Not Found");
@@ -100,7 +108,7 @@ const deleteMovie = (req, res) => {
     })
     .catch((err) => {
       console.error(err);
-      res.status(500).send("Error updating a movie");
+      res.status(500).send("Error deleting the movie");
     });
 };
 
